@@ -98,7 +98,7 @@ Activate satellite view to browse satelite imagery, capture a screenshot, select
   - Frontend: 128 MiB request, 256 MiB limit
   - Backend: 256 MiB request, 512 MiB limit
   - Model Server: 6 GiB request, 8 GiB limit
-- **GPU**: Not required (CPU-only inference supported, ~5-10 seconds per image)
+- **GPU**: Not required (CPU-only inference supported, ~7-15 seconds per image)
 
 ### User Permissions
 
@@ -113,8 +113,8 @@ Activate satellite view to browse satelite imagery, capture a screenshot, select
 
 ### Prerequisites
 
-1. **Red Hat OpenShift cluster** 
-2. **OpenShift AI Operator installed** with KServe/ModelMesh enabled
+1. **Red Hat OpenShift 4.2x cluster** 
+2. **OpenShift AI 3.x** with KServe/ModelMesh enabled
 3. **oc CLI** authenticated to your cluster
 4. **Helm 3.10+** installed locally
 
@@ -205,7 +205,7 @@ oc delete project caisat
 6. **Compare**: View before and after side-by-side to see recovered details
 7. **Download**: Save the enhanced 512×512 image for your records
 
-Processing time: ~5-10 seconds per image on CPU.
+Processing time: ~7-15 seconds per image on CPU.
 
 ---
 
