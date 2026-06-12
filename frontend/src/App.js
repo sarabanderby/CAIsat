@@ -10,9 +10,11 @@ function App() {
   const [view, setView] = useState('globe'); // 'globe', 'map', or 'processing'
   const [enhancementCount, setEnhancementCount] = useState(0);
   const [systemOnline, setSystemOnline] = useState(false);
-  const [captureMode, setCaptureMode] = useState(false);
-  const [selectedArea, setSelectedArea] = useState(null);
   const [capturedImage, setCapturedImage] = useState(null);
+  const [cropArea, setCropArea] = useState({ x: 50, y: 50, size: 256 });
+  const [dragging, setDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [croppedImage, setCroppedImage] = useState(null);
   const [enhancedImage, setEnhancedImage] = useState(null);
   const [processing, setProcessing] = useState(false);
   const globeRef = useRef(null);
@@ -126,102 +128,120 @@ function App() {
   };
 
   const handleCaptureEnhance = () => {
-    setCaptureMode(true);
-  };
-
-  const handleAreaSelect = async (bounds) => {
     if (!mapRef.current) return;
 
-    setSelectedArea(bounds);
-    setCaptureMode(false);
+    // Capture the map as a screenshot
+    leafletImage(mapRef.current, (err, canvas) => {
+      if (err) {
+        console.error('Error capturing map:', err);
+        alert('Error capturing map view');
+        return;
+      }
 
-    // Capture the map as an image
-    try {
-      const map = mapRef.current;
+      // Convert canvas to data URL
+      const imageUrl = canvas.toDataURL('image/png');
+      setCapturedImage(imageUrl);
+      setView('processing');
 
-      leafletImage(map, async (err, canvas) => {
-        if (err) {
-          console.error('Error capturing map:', err);
-          alert('Error capturing map view');
-          return;
-        }
+      // Reset crop area to center
+      setCropArea({ x: canvas.width / 2 - 128, y: canvas.height / 2 - 128, size: 256 });
+    });
+  };
 
-        // Convert canvas to blob
-        canvas.toBlob(async (blob) => {
-          // Create FormData
-          const formData = new FormData();
-          formData.append('image', blob, 'capture.png');
+  const handleMouseDown = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
 
-          // Show captured image
-          const imageUrl = URL.createObjectURL(blob);
-          setCapturedImage(imageUrl);
-          setView('processing');
-          setProcessing(true);
-
-          try {
-            // Send to backend for enhancement
-            const response = await axios.post(`${BACKEND_BASE}/api/enhance`, formData, {
-              headers: { 'Content-Type': 'multipart/form-data' },
-              responseType: 'blob'
-            });
-
-            // Create URL for enhanced image
-            const enhancedUrl = URL.createObjectURL(response.data);
-            setEnhancedImage(enhancedUrl);
-            setProcessing(false);
-          } catch (error) {
-            console.error('Enhancement failed:', error);
-            alert('Enhancement failed: ' + error.message);
-            setProcessing(false);
-          }
-        }, 'image/png');
-      });
-    } catch (error) {
-      console.error('Capture error:', error);
-      alert('Error: ' + error.message);
+    // Check if clicking inside crop box
+    if (
+      x >= cropArea.x &&
+      x <= cropArea.x + cropArea.size &&
+      y >= cropArea.y &&
+      y <= cropArea.y + cropArea.size
+    ) {
+      setDragging(true);
+      setDragStart({ x: x - cropArea.x, y: y - cropArea.y });
     }
   };
 
-  // Map selection component
-  function MapSelector() {
-    const [startPos, setStartPos] = useState(null);
-    const [currentPos, setCurrentPos] = useState(null);
+  const handleMouseMove = (e) => {
+    if (!dragging) return;
 
-    useMapEvents({
-      mousedown: (e) => {
-        if (captureMode) {
-          setStartPos(e.latlng);
-          setCurrentPos(e.latlng);
-        }
-      },
-      mousemove: (e) => {
-        if (captureMode && startPos) {
-          setCurrentPos(e.latlng);
-        }
-      },
-      mouseup: (e) => {
-        if (captureMode && startPos) {
-          const bounds = [
-            [Math.min(startPos.lat, e.latlng.lat), Math.min(startPos.lng, e.latlng.lng)],
-            [Math.max(startPos.lat, e.latlng.lat), Math.max(startPos.lng, e.latlng.lng)]
-          ];
-          handleAreaSelect(bounds);
-          setStartPos(null);
-          setCurrentPos(null);
-        }
-      }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left - dragStart.x;
+    const y = e.clientY - rect.top - dragStart.y;
+
+    // Keep crop box within image bounds
+    const maxX = rect.width - cropArea.size;
+    const maxY = rect.height - cropArea.size;
+
+    setCropArea({
+      ...cropArea,
+      x: Math.max(0, Math.min(x, maxX)),
+      y: Math.max(0, Math.min(y, maxY))
     });
+  };
 
-    if (captureMode && startPos && currentPos) {
-      const bounds = [
-        [Math.min(startPos.lat, currentPos.lat), Math.min(startPos.lng, currentPos.lng)],
-        [Math.max(startPos.lat, currentPos.lat), Math.max(startPos.lng, currentPos.lng)]
-      ];
-      return <Rectangle bounds={bounds} pathOptions={{ color: '#ff4444', weight: 3 }} />;
+  const handleMouseUp = () => {
+    setDragging(false);
+  };
+
+  const handleEnhance = async () => {
+    if (!capturedImage) return;
+
+    setProcessing(true);
+    setCroppedImage(null);
+    setEnhancedImage(null);
+
+    try {
+      // Create a canvas to crop the image
+      const img = new Image();
+      img.src = capturedImage;
+
+      await new Promise((resolve) => {
+        img.onload = resolve;
+      });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 256;
+      const ctx = canvas.getContext('2d');
+
+      // Draw cropped portion
+      ctx.drawImage(
+        img,
+        cropArea.x, cropArea.y, cropArea.size, cropArea.size,
+        0, 0, 256, 256
+      );
+
+      // Convert to blob
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+
+      // Save cropped image for display
+      const croppedUrl = URL.createObjectURL(blob);
+      setCroppedImage(croppedUrl);
+
+      // Send to backend
+      const formData = new FormData();
+      formData.append('image', blob, 'crop.png');
+
+      const response = await axios.post(`${BACKEND_BASE}/api/enhance`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        responseType: 'blob'
+      });
+
+      // Show enhanced result
+      const enhancedUrl = URL.createObjectURL(response.data);
+      setEnhancedImage(enhancedUrl);
+      setProcessing(false);
+
+    } catch (error) {
+      console.error('Enhancement failed:', error);
+      alert('Enhancement failed: ' + error.message);
+      setProcessing(false);
     }
-
-    return null;
-  }
+  };
 
   return (
     <div className="app-container">
@@ -311,7 +331,7 @@ function App() {
                   zoom={3}
                   minZoom={2}
                   maxZoom={19}
-                  style={{ width: '100%', height: '100%', background: '#000', cursor: captureMode ? 'crosshair' : 'grab' }}
+                  style={{ width: '100%', height: '100%', background: '#000' }}
                   zoomControl={true}
                 >
                   <TileLayer
@@ -319,30 +339,10 @@ function App() {
                     url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
                     maxZoom={19}
                   />
-                  <MapSelector />
                 </MapContainer>
-                {captureMode && (
-                  <div style={{
-                    position: 'fixed',
-                    top: '60px',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    background: 'rgba(255, 68, 68, 0.9)',
-                    color: '#fff',
-                    padding: '10px 20px',
-                    borderRadius: '20px',
-                    zIndex: 10000,
-                    fontSize: '14px',
-                    fontWeight: 700
-                  }}>
-                    Click and drag to select area to enhance
-                  </div>
-                )}
-                {!captureMode && (
-                  <button className="capture-btn" onClick={handleCaptureEnhance}>
-                    Capture & Enhance
-                  </button>
-                )}
+                <button className="capture-btn" onClick={handleCaptureEnhance}>
+                  Capture & Enhance
+                </button>
               </>
             )}
 
@@ -351,24 +351,80 @@ function App() {
               <div className="processing-view">
                 <div className="processing-header">
                   <h2>Image Enhancement</h2>
-                  <button className="back-btn" onClick={() => setView('map')}>← Back to Map</button>
+                  <button className="back-btn" onClick={() => { setView('map'); setCroppedImage(null); setEnhancedImage(null); }}>
+                    ← Back to Map
+                  </button>
                 </div>
-                <div className="processing-container">
-                  <div className="image-panel">
-                    <h3>Original Capture</h3>
-                    {capturedImage && <img src={capturedImage} alt="Captured" />}
+
+                {/* Step 1: Select area to enhance */}
+                {!croppedImage && !enhancedImage && (
+                  <div className="crop-section">
+                    <h3>Select 256x256 Area to Enhance</h3>
+                    <p className="instruction">Drag the red box to select the area you want to enhance</p>
+                    <div className="crop-container">
+                      <div
+                        className="crop-image-wrapper"
+                        onMouseDown={handleMouseDown}
+                        onMouseMove={handleMouseMove}
+                        onMouseUp={handleMouseUp}
+                        onMouseLeave={handleMouseUp}
+                        style={{ cursor: dragging ? 'grabbing' : 'grab' }}
+                      >
+                        <img src={capturedImage} alt="Captured map" className="crop-base-image" />
+                        <div
+                          className="crop-box"
+                          style={{
+                            left: `${cropArea.x}px`,
+                            top: `${cropArea.y}px`,
+                            width: `${cropArea.size}px`,
+                            height: `${cropArea.size}px`
+                          }}
+                        >
+                          <div className="crop-label">256×256</div>
+                        </div>
+                      </div>
+                    </div>
+                    <button className="enhance-btn" onClick={handleEnhance}>
+                      Enhance Selected Area
+                    </button>
                   </div>
-                  <div className="image-panel">
-                    <h3>Enhanced Result</h3>
-                    {processing ? (
-                      <div className="loading">Processing with SwinIR...</div>
-                    ) : enhancedImage ? (
-                      <img src={enhancedImage} alt="Enhanced" />
-                    ) : (
-                      <div className="loading">Waiting...</div>
-                    )}
+                )}
+
+                {/* Step 2: Processing */}
+                {processing && (
+                  <div className="processing-section">
+                    <div className="spinner-container">
+                      <div className="satellite-spinner">🛰️</div>
+                      <p className="processing-text">Processing...</p>
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {/* Step 3: Results */}
+                {!processing && croppedImage && enhancedImage && (
+                  <div className="results-section">
+                    <h3>Enhancement Complete</h3>
+                    <div className="results-container">
+                      <div className="result-panel">
+                        <h4>Original (256×256)</h4>
+                        <img src={croppedImage} alt="Original crop" />
+                      </div>
+                      <div className="result-arrow">→</div>
+                      <div className="result-panel">
+                        <h4>Enhanced (512×512)</h4>
+                        <img src={enhancedImage} alt="Enhanced" />
+                      </div>
+                    </div>
+                    <div className="result-actions">
+                      <button className="back-btn" onClick={() => { setView('map'); setCroppedImage(null); setEnhancedImage(null); }}>
+                        ← Back to Map
+                      </button>
+                      <a href={enhancedImage} download="enhanced.png" className="download-btn">
+                        Download Enhanced Image
+                      </a>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
