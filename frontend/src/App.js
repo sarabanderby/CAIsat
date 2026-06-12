@@ -198,8 +198,35 @@ function App() {
 
   const handleWheel = (e) => {
     e.preventDefault();
+
+    const container = e.currentTarget;
+    const rect = container.getBoundingClientRect();
+
+    // Mouse position relative to container
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    // Current scroll position
+    const scrollLeft = container.scrollLeft;
+    const scrollTop = container.scrollTop;
+
+    // Point in image that's under the mouse (before zoom)
+    const pointX = (scrollLeft + mouseX) / zoom;
+    const pointY = (scrollTop + mouseY) / zoom;
+
+    // Calculate new zoom
     const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    setZoom(prevZoom => Math.max(1, Math.min(prevZoom * delta, 5)));
+    const newZoom = Math.max(1, Math.min(zoom * delta, 5));
+
+    // Set new zoom
+    setZoom(newZoom);
+
+    // After zoom is set, adjust scroll to keep point under mouse
+    // We need to do this after the DOM updates, so use setTimeout
+    setTimeout(() => {
+      container.scrollLeft = pointX * newZoom - mouseX;
+      container.scrollTop = pointY * newZoom - mouseY;
+    }, 0);
   };
 
   const handleEnhance = async () => {
