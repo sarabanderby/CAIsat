@@ -93,11 +93,9 @@ Activate satellite view to browse satellite imagery, capture a screenshot, selec
   - YOLOv8 Model Server: 2 cores request, 4 cores limit
 - **Memory**: 13.5 GiB minimum
   - Frontend: 128 MiB request, 256 MiB limit
-  - Enhancement Backend: 256 MiB request, 512 MiB limit
-  - Detection Backend: 512 MiB request, 2 GiB limit
-  - SwinIR Model Server: 6 GiB request, 8 GiB limit
-  - YOLOv8 Model Server: 4 GiB request, 6 GiB limit
-- **GPU**: Not required (CPU-only inference supported, ~5-10 seconds per enhancement, ~1-2 seconds per detection)
+  - Backend: 256 MiB request, 512 MiB limit
+  - Model Server: 6 GiB request, 8 GiB limit
+- **GPU**: Not required (CPU-only inference supported, ~7-15 seconds per image)
 
 ### User Permissions
 
@@ -112,8 +110,8 @@ Activate satellite view to browse satellite imagery, capture a screenshot, selec
 
 ### Prerequisites
 
-1. **Red Hat OpenShift cluster 4.2x** 
-2. **OpenShift AI 3.x** with KServe
+1. **Red Hat OpenShift 4.2x cluster** 
+2. **OpenShift AI 3.x** 
 3. **oc CLI** authenticated to your cluster
 4. **Helm 3.10+** installed locally
 
@@ -211,6 +209,7 @@ oc delete project caisat
 Processing time: ~10-15 seconds per enhancement, ~5-6 seconds per detection on CPU.
 
 **Detectable Objects**: plane, ship, storage-tank, baseball-diamond, tennis-court, basketball-court, ground-track-field, harbor, bridge, large-vehicle, small-vehicle, helicopter, roundabout, soccer-ball-field, swimming-pool.
+Processing time: ~7-15 seconds per image on CPU.
 
 ---
 
