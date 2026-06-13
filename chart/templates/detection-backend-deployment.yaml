@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "zoom-enhance.fullname" . }}-detection-backend
+  labels:
+    {{- include "zoom-enhance.labels" . | nindent 4 }}
+    app.kubernetes.io/component: detection-backend
+spec:
+  replicas: {{ .Values.detectionBackend.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "zoom-enhance.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: detection-backend
+  template:
+    metadata:
+      labels:
+        {{- include "zoom-enhance.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: detection-backend
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+      - name: detection-backend
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 12 }}
+        image: "{{ .Values.detectionBackend.image.repository }}:{{ .Values.detectionBackend.image.tag }}"
+        imagePullPolicy: {{ .Values.detectionBackend.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        env:
+        - name: MODEL_ENDPOINT
+          value: "http://{{ .Values.detection.serviceName }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.detection.port }}/v2/models/{{ .Values.detection.name }}/infer"
+        - name: CONFIDENCE_THRESHOLD
+          value: "{{ .Values.detectionBackend.env.confidenceThreshold }}"
+        - name: IOU_THRESHOLD
+          value: "{{ .Values.detectionBackend.env.iouThreshold }}"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          {{- toYaml .Values.detectionBackend.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

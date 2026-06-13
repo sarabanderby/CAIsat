@@ -37,6 +37,47 @@ model:
       cpu: "4"
       memory: "8Gi"
 
+# YOLO Object Detection Model configuration
+detection:
+  # Deploy the detection model as part of this chart
+  deploy: true
+
+  # OCI image with the ONNX model
+  image:
+    repository: quay.io/sara_banderby/caisat
+    tag: "yoloobb"
+
+  # InferenceService name
+  name: yolov8m-satelite
+
+  # Connection name (for the secret)
+  connectionName: yolo-satellite
+
+  # Service name of the model inference endpoint (auto-generated: <name>-predictor)
+  serviceName: yolov8m-satelite-predictor
+
+  # Namespace where the model is deployed
+  # Leave empty ("") to use the same namespace as the Helm release
+  namespace: ""
+
+  # Port (MLServer default is 8080)
+  port: 8080
+
+  # Model runtime
+  runtime: mlserver
+
+  # Model runtime
+  runtime: mlserver
+
+  # Resources for the model server
+  resources:
+    requests:
+      cpu: "2"
+      memory: "4Gi"
+    limits:
+      cpu: "4"
+      memory: "6Gi"
+
 # Backend configuration
 backend:
   replicaCount: 1
@@ -64,6 +105,39 @@ backend:
     tls:
       enabled: true
       termination: edge
+
+# Detection Backend configuration
+detectionBackend:
+  replicaCount: 1
+
+  image:
+    repository: quay.io/sara_banderby/caisat
+    pullPolicy: Always
+    tag: "detection-backend"
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+  service:
+    type: ClusterIP
+    port: 8080
+
+  route:
+    enabled: true
+    host: ""  # Leave empty for auto-generated
+    tls:
+      enabled: true
+      termination: edge
+
+  # Environment variables
+  env:
+    confidenceThreshold: "0.5"
+    iouThreshold: "0.45"
 
 # Frontend configuration
 frontend:

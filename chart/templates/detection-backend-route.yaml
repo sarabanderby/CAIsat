@@ -1,0 +1,25 @@
+{{- if .Values.detectionBackend.route.enabled }}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ include "zoom-enhance.fullname" . }}-detection-backend
+  labels:
+    {{- include "zoom-enhance.labels" . | nindent 4 }}
+    app.kubernetes.io/component: detection-backend
+  annotations:
+    haproxy.router.openshift.io/timeout: 2m
+spec:
+  host: {{ .Values.detectionBackend.route.host }}
+  to:
+    kind: Service
+    name: {{ include "zoom-enhance.fullname" . }}-detection-backend
+    weight: 100
+  port:
+    targetPort: http
+  {{- if .Values.detectionBackend.route.tls.enabled }}
+  tls:
+    termination: {{ .Values.detectionBackend.route.tls.termination }}
+    insecureEdgeTerminationPolicy: {{ .Values.detectionBackend.route.tls.insecureEdgeTerminationPolicy | default "Redirect" }}
+  {{- end }}
+  wildcardPolicy: None
+{{- end }}
