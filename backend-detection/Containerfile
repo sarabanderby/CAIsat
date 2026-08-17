@@ -28,4 +28,4 @@ EXPOSE 8080
 
 # Run the application
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]
-# rebuild
+# rebuild for CVE-2026-11940, PYSEC-2025-49, CVE-2026-58055
