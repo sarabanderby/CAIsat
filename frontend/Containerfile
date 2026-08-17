@@ -24,4 +24,4 @@ RUN npm install -g serve
 EXPOSE 8080
 
 # Serve the build directory
-CMD ["serve", "-s", "build", "-l", "8080"]
+CMD ["serve", "-s", "build", "-l", "8080"] # rebuild for CVE-2026-60002, CVE-2026-11940
